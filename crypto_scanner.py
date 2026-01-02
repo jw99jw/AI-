@@ -1,52 +1,48 @@
+import os
 import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.ensemble import RandomForestClassifier
 
-# 1. data representation
-data = {
+# 1. AI training datasets (reinforced)
+training_data = {
     'code_snippet': [
-        "print('hello world')", 
-        "import rsa; key = rsa.newkeys(1024)", 
-        "for i in range(10): print(i)",
-        "from Crypto.Cipher import AES; cipher = AES.new(key, AES.MODE_ECB)",
-        "x = a + b",
-        "hashlib.sha1(data).hexdigest()"
+        "print('system check')", "import os; os.listdir()",
+        "import rsa; key = rsa.newkeys(1024)", "from Crypto.Cipher import AES",
+        "def add(a, b): return a + b", "hashlib.sha1(data)",
+        "from pqcrypto.kem.kyber512 import generate_keypair", # PQC : safe
+        "import ml_kem; key = ml_kem.generate_keypair()"      # PQC : safe
     ],
-    'is_vulnerable': [0, 1, 0, 1, 0, 1] # 0: safe, 1: quantum vulnerable
+    'is_vulnerable': [0, 0, 1, 1, 0, 1, 0, 0]
 }
 
-df = pd.DataFrame(data)
-
-# 2. convert text data into vector (TF-IDF)
+df = pd.DataFrame(training_data)
 vectorizer = TfidfVectorizer()
 X = vectorizer.fit_transform(df['code_snippet'])
-y = df['is_vulnerable']
-
-# 3. learn model (Random Forest)
 model = RandomForestClassifier()
-model.fit(X, y)
+model.fit(X, df['is_vulnerable'])
 
-# 4. test new code (test)
-# new_code = ["import rsa; public_key, private_key = rsa.newkeys(2048)"]
+# 2. file scanning function
+def scan_directory(path):
+    print(f"beginning to scan : {path}")
+    print("-" * 50)
+    
+    for root, dirs, files in os.walk(path):
+        for file in files:
+            # analyze only python files (except virtual environment folder)
+            if file.endswith(".py") and "quantum_ai_env" not in root:
+                file_path = os.path.join(root, file)
+                
+                with open(file_path, 'r', errors='ignore') as f:
+                    code = f.read()
+                    
+                # AI prediction
+                new_X = vectorizer.transform([code])
+                prediction = model.predict(new_X)
+                
+                if prediction[0] == 1:
+                    print(f"⚠️ [dager] {file_path}")
+                else:
+                    print(f"✅ [safe] {file_path}")
 
-# 4. new test code
-test_codes = [
-    "print('Hello Raspberry Pi!')",                               # safe
-    "import rsa; key = rsa.newkeys(512)",                         # vulnerable
-    "from Crypto.Hash import SHA1; h = SHA1.new(data)",           # vulnerable
-    "from pqcrypto.kem.kyber512 import generate_keypair"          # safe(quantum safe)
-]
-
-for code in test_codes:
-    new_X = vectorizer.transform([code])
-    prediction = model.predict(new_X)
-    result = "⚠️ [danger] quantum vulnerable password detected" if prediction[0] == 1 else "✅ [safe] normal or PQC code"
-    print(f"Code: {code[:30]}... -> Result: {result}")
-
-new_X = vectorizer.transform(test_codes)
-prediction = model.predict(new_X)
-
-if prediction[0] == 1:
-    print("⚠️ warning: password pattern vulnerable to quantum attacks detected!")
-else:
-    print("✅ safe: standard code.")
+# 3. open my project directory
+scan_directory('/home/klesa/project')
